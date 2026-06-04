@@ -1,0 +1,3 @@
+com\fdp\apigateway\exception\GlobalExceptionHandler.class
+com\fdp\apigateway\filter\LoggingFilter.class
+com\fdp\apigateway\ApiGatewayApplication.class
