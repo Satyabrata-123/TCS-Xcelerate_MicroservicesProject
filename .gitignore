@@ -56,3 +56,11 @@ buildNumber.properties
 # Operating System Files
 .DS_Store
 Thumbs.db
+
+# Auto-added sensitive file patterns
+.env
+*.pem
+logs/
+__pycache__/
+*.pyc
+node_modules/
