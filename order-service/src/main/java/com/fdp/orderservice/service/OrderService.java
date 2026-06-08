@@ -11,4 +11,5 @@ public interface OrderService {
     OrderResponse acceptOrder(UUID id);
     OrderResponse outForDelivery(UUID id);
     OrderResponse deliverOrder(UUID id);
+    void cancelOrder(UUID id, String reason);
 }

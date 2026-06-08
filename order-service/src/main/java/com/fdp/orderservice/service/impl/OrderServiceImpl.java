@@ -13,13 +13,17 @@ import com.fdp.orderservice.exception.InvalidOrderStateException;
 import com.fdp.orderservice.exception.ResourceNotFoundException;
 import com.fdp.orderservice.mapper.OrderMapper;
 import com.fdp.orderservice.repository.OrderRepository;
+import com.fdp.orderservice.service.OrderEventProducer;
 import com.fdp.orderservice.service.OrderService;
+import com.fdp.orderservice.dto.event.OrderCreatedEvent;
+import com.fdp.orderservice.dto.event.OrderDeliveredEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -34,6 +38,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final RestaurantClient restaurantClient;
     private final OrderMapper orderMapper;
+    private final OrderEventProducer orderEventProducer;
 
     @Override
     @Transactional
@@ -92,6 +97,29 @@ public class OrderServiceImpl implements OrderService {
         Order savedOrder = orderRepository.save(order);
         
         log.info("Order created successfully with ID: {} and total amount: {}", savedOrder.getId(), savedOrder.getTotalAmount());
+
+        // Publish OrderCreatedEvent
+        OrderCreatedEvent event = OrderCreatedEvent.builder()
+                .eventId(UUID.randomUUID())
+                .eventType("ORDER_CREATED")
+                .timestamp(LocalDateTime.now())
+                .payload(OrderCreatedEvent.Payload.builder()
+                        .orderId(savedOrder.getId())
+                        .customerId(savedOrder.getCustomerId())
+                        .restaurantId(savedOrder.getRestaurantId())
+                        .totalAmount(savedOrder.getTotalAmount())
+                        .items(savedOrder.getItems().stream()
+                                .map(item -> OrderCreatedEvent.OrderItemDto.builder()
+                                        .menuItemId(item.getMenuItemId())
+                                        .name(item.getName())
+                                        .price(item.getPrice())
+                                        .quantity(item.getQuantity())
+                                        .build())
+                                .collect(Collectors.toList()))
+                        .build())
+                .build();
+        orderEventProducer.sendOrderCreatedEvent(event);
+
         return orderMapper.toOrderResponse(savedOrder);
     }
 
@@ -151,6 +179,32 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(OrderStatus.DELIVERED);
         Order savedOrder = orderRepository.save(order);
         log.info("Order {} status updated to DELIVERED", id);
+
+        // Publish OrderDeliveredEvent
+        OrderDeliveredEvent event = OrderDeliveredEvent.builder()
+                .eventId(UUID.randomUUID())
+                .eventType("ORDER_DELIVERED")
+                .timestamp(LocalDateTime.now())
+                .payload(OrderDeliveredEvent.Payload.builder()
+                        .orderId(savedOrder.getId())
+                        .customerId(savedOrder.getCustomerId())
+                        .deliveredAt(LocalDateTime.now())
+                        .build())
+                .build();
+        orderEventProducer.sendOrderDeliveredEvent(event);
+
         return orderMapper.toOrderResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public void cancelOrder(UUID id, String reason) {
+        log.info("Cancelling order: {} due to: {}", id, reason);
+        Order order = orderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Order with ID " + id + " not found"));
+
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        log.info("Order {} status updated to CANCELLED", id);
     }
 }

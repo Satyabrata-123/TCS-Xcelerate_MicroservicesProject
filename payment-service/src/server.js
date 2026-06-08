@@ -3,6 +3,8 @@ import app from './app.js';
 import sequelize from './config/database.js';
 import logger from './config/logger.js';
 import { startEureka, stopEureka } from './config/eureka.js';
+import { connectKafka, disconnectKafka } from './config/kafka.js';
+import { startOrderConsumer } from './consumers/orderConsumer.js';
 
 dotenv.config();
 
@@ -15,6 +17,10 @@ async function startServer() {
     await sequelize.authenticate();
     logger.info('Database connection established successfully.');
 
+    // Connect to Kafka
+    logger.info('Connecting to Kafka broker...');
+    await connectKafka();
+
     logger.info('Synchronizing database models...');
     // Synchronize models (in production, migrations are preferred, but sync is ideal for bootstrap)
     await sequelize.sync();
@@ -26,6 +32,9 @@ async function startServer() {
       
       // Start Eureka Client Registration
       startEureka();
+
+      // Start Kafka Consumer
+      startOrderConsumer();
     });
   } catch (error) {
     logger.error('Failed to start the application server:', error);
@@ -39,6 +48,9 @@ async function gracefulShutdown(signal) {
   
   // Stop Eureka first so it deregisters from Eureka registry immediately
   await stopEureka();
+
+  // Disconnect Kafka
+  await disconnectKafka();
   
   if (server) {
     server.close(() => {
