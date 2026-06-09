@@ -22,7 +22,7 @@ import java.util.UUID;
 @Slf4j
 public class OrderSagaOrchestrator {
 
-    private final PaymentClient paymentClient;
+    private final PaymentServiceProxy paymentServiceProxy;
     private final OrderRepository orderRepository;
     private final OrderEventProducer eventProducer;
 
@@ -39,8 +39,8 @@ public class OrderSagaOrchestrator {
                 .build();
 
         try {
-            log.info("Saga Orchestrator calling Payment Service for Order: {}", order.getId());
-            PaymentResponse paymentResponse = paymentClient.processPayment(idempotencyKey, paymentRequest);
+            log.info("Saga Orchestrator calling Payment Service via Proxy for Order: {}", order.getId());
+            PaymentResponse paymentResponse = paymentServiceProxy.processPayment(idempotencyKey, paymentRequest);
 
             if (paymentResponse != null && paymentResponse.getData() != null && paymentResponse.getData().getPayment() != null
                     && "SUCCESS".equalsIgnoreCase(paymentResponse.getData().getPayment().getStatus())) {
