@@ -15,6 +15,7 @@ import com.fdp.orderservice.exception.ResourceNotFoundException;
 import com.fdp.orderservice.mapper.OrderMapper;
 import com.fdp.orderservice.repository.OrderRepository;
 import com.fdp.orderservice.service.OrderEventProducer;
+import com.fdp.orderservice.service.OrderSagaOrchestrator;
 import com.fdp.orderservice.service.OrderService;
 import com.fdp.orderservice.dto.event.OrderCreatedEvent;
 import com.fdp.orderservice.dto.event.OrderDeliveredEvent;
@@ -40,6 +41,7 @@ public class OrderServiceImpl implements OrderService {
     private final RestaurantClient restaurantClient;
     private final OrderMapper orderMapper;
     private final OrderEventProducer orderEventProducer;
+    private final OrderSagaOrchestrator orderSagaOrchestrator;
 
     @Override
     @Transactional
@@ -123,7 +125,10 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         orderEventProducer.sendOrderCreatedEvent(event);
 
-        return orderMapper.toOrderResponse(savedOrder);
+        // Execute Saga Orchestrator to call Payment Service and complete order
+        Order finalizedOrder = orderSagaOrchestrator.processOrderSaga(savedOrder);
+
+        return orderMapper.toOrderResponse(finalizedOrder);
     }
 
     @Override
