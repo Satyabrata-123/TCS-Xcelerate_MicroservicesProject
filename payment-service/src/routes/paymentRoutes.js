@@ -5,12 +5,13 @@ import {
   validateGetPayment, 
   validateRefundPayment 
 } from '../middlewares/validate.js';
+import { idempotencyMiddleware } from '../middlewares/idempotency.js';
 
 const router = Router();
 
-router.post('/', validateProcessPayment, paymentController.processPayment);
+router.post('/', idempotencyMiddleware, validateProcessPayment, paymentController.processPayment);
 router.get('/:id', validateGetPayment, paymentController.getPayment);
-router.post('/:id/refund', validateRefundPayment, paymentController.refundPayment);
+router.post('/:id/refund', idempotencyMiddleware, validateRefundPayment, paymentController.refundPayment);
 
 export default router;
 export { router as paymentRoutes };
