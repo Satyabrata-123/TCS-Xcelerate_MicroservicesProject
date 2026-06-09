@@ -1,5 +1,6 @@
 package com.fdp.orderservice.controller;
 
+import com.fdp.orderservice.dto.OrderCancelRequest;
 import com.fdp.orderservice.dto.OrderRequest;
 import com.fdp.orderservice.dto.OrderResponse;
 import com.fdp.orderservice.service.OrderService;
@@ -20,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/orders")
+@RequestMapping({"/api/v1/orders", "/orders"})
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Order API", description = "Endpoints for creating and managing food orders, and updating delivery lifecycle states.")
@@ -62,7 +63,7 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
-    @PatchMapping("/{id}/accept")
+    @PutMapping("/{id}/accept")
     @Operation(summary = "Accept a pending order", description = "Transitions an order's status from PENDING to ACCEPTED.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Order status updated to ACCEPTED",
@@ -80,8 +81,8 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
-    @PatchMapping("/{id}/out-for-delivery")
-    @Operation(summary = "Mark order as out for delivery", description = "Transitions an order's status from ACCEPTED to OUT_FOR_DELIVERY.")
+    @PutMapping({"/{id}/dispatch", "/{id}/out-for-delivery"})
+    @Operation(summary = "Mark order as out for delivery / dispatch", description = "Transitions an order's status from ACCEPTED to OUT_FOR_DELIVERY.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Order status updated to OUT_FOR_DELIVERY",
                     content = @Content(schema = @Schema(implementation = OrderResponse.class))),
@@ -90,15 +91,15 @@ public class OrderController {
             @ApiResponse(responseCode = "404", description = "Order not found",
                     content = @Content)
     })
-    public ResponseEntity<OrderResponse> outForDelivery(
+    public ResponseEntity<OrderResponse> dispatchOrder(
             @Parameter(description = "Unique identifier of the order", required = true)
             @PathVariable UUID id) {
-        log.info("REST request to set order out for delivery: {}", id);
-        OrderResponse response = orderService.outForDelivery(id);
+        log.info("REST request to dispatch order: {}", id);
+        OrderResponse response = orderService.dispatchOrder(id);
         return ResponseEntity.ok(response);
     }
 
-    @PatchMapping("/{id}/deliver")
+    @PutMapping("/{id}/deliver")
     @Operation(summary = "Mark order as delivered", description = "Transitions an order's status from OUT_FOR_DELIVERY to DELIVERED.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Order status updated to DELIVERED",
@@ -113,6 +114,26 @@ public class OrderController {
             @PathVariable UUID id) {
         log.info("REST request to deliver order: {}", id);
         OrderResponse response = orderService.deliverOrder(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}/cancel")
+    @Operation(summary = "Cancel an order", description = "Transitions an order's status from PENDING or ACCEPTED to CANCELLED.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Order status updated to CANCELLED",
+                    content = @Content(schema = @Schema(implementation = OrderResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid status transition",
+                    content = @Content),
+            @ApiResponse(responseCode = "404", description = "Order not found",
+                    content = @Content)
+    })
+    public ResponseEntity<OrderResponse> cancelOrder(
+            @Parameter(description = "Unique identifier of the order", required = true)
+            @PathVariable UUID id,
+            @RequestBody(required = false) OrderCancelRequest request) {
+        log.info("REST request to cancel order: {}", id);
+        String reason = request != null ? request.getReason() : "Cancelled via API request";
+        OrderResponse response = orderService.cancelOrder(id, reason);
         return ResponseEntity.ok(response);
     }
 }

@@ -19,12 +19,12 @@ class UserController {
   async login(req, res, next) {
     try {
       const { email, password } = req.body;
-      const user = await userService.loginUser(email, password);
+      const { user, token } = await userService.loginUser(email, password);
 
       res.status(200).json({
         status: 'success',
         message: 'Login successful',
-        data: { user },
+        data: { token, user },
       });
     } catch (err) {
       next(err);

@@ -9,6 +9,7 @@ import com.fdp.orderservice.dto.restaurant.RestaurantResponse;
 import com.fdp.orderservice.entity.Order;
 import com.fdp.orderservice.entity.OrderItem;
 import com.fdp.orderservice.entity.OrderStatus;
+import com.fdp.orderservice.entity.OrderStatusHistory;
 import com.fdp.orderservice.exception.InvalidOrderStateException;
 import com.fdp.orderservice.exception.ResourceNotFoundException;
 import com.fdp.orderservice.mapper.OrderMapper;
@@ -65,6 +66,8 @@ public class OrderServiceImpl implements OrderService {
                 .status(OrderStatus.PENDING)
                 .totalAmount(BigDecimal.ZERO)
                 .build();
+
+        recordStatusChange(order, null, OrderStatus.PENDING, "Order placed successfully");
 
         BigDecimal totalAmount = BigDecimal.ZERO;
 
@@ -138,11 +141,13 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order with ID " + id + " not found"));
 
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new InvalidOrderStateException("Cannot accept order. Order must be in PENDING status, but current status is " + order.getStatus());
+        OrderStatus previousStatus = order.getStatus();
+        if (previousStatus != OrderStatus.PENDING) {
+            throw new InvalidOrderStateException("Cannot accept order. Order must be in PENDING status, but current status is " + previousStatus);
         }
 
         order.setStatus(OrderStatus.ACCEPTED);
+        recordStatusChange(order, previousStatus, OrderStatus.ACCEPTED, "Order accepted by restaurant");
         Order savedOrder = orderRepository.save(order);
         log.info("Order {} status updated to ACCEPTED", id);
         return orderMapper.toOrderResponse(savedOrder);
@@ -150,16 +155,18 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderResponse outForDelivery(UUID id) {
-        log.info("Setting order out for delivery: {}", id);
+    public OrderResponse dispatchOrder(UUID id) {
+        log.info("Dispatching order: {}", id);
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order with ID " + id + " not found"));
 
-        if (order.getStatus() != OrderStatus.ACCEPTED) {
-            throw new InvalidOrderStateException("Cannot set order out for delivery. Order must be in ACCEPTED status, but current status is " + order.getStatus());
+        OrderStatus previousStatus = order.getStatus();
+        if (previousStatus != OrderStatus.ACCEPTED) {
+            throw new InvalidOrderStateException("Cannot dispatch order. Order must be in ACCEPTED status, but current status is " + previousStatus);
         }
 
         order.setStatus(OrderStatus.OUT_FOR_DELIVERY);
+        recordStatusChange(order, previousStatus, OrderStatus.OUT_FOR_DELIVERY, "Order dispatched and is out for delivery");
         Order savedOrder = orderRepository.save(order);
         log.info("Order {} status updated to OUT_FOR_DELIVERY", id);
         return orderMapper.toOrderResponse(savedOrder);
@@ -172,11 +179,13 @@ public class OrderServiceImpl implements OrderService {
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order with ID " + id + " not found"));
 
-        if (order.getStatus() != OrderStatus.OUT_FOR_DELIVERY) {
-            throw new InvalidOrderStateException("Cannot mark order as delivered. Order must be in OUT_FOR_DELIVERY status, but current status is " + order.getStatus());
+        OrderStatus previousStatus = order.getStatus();
+        if (previousStatus != OrderStatus.OUT_FOR_DELIVERY) {
+            throw new InvalidOrderStateException("Cannot mark order as delivered. Order must be in OUT_FOR_DELIVERY status, but current status is " + previousStatus);
         }
 
         order.setStatus(OrderStatus.DELIVERED);
+        recordStatusChange(order, previousStatus, OrderStatus.DELIVERED, "Order delivered successfully");
         Order savedOrder = orderRepository.save(order);
         log.info("Order {} status updated to DELIVERED", id);
 
@@ -198,13 +207,33 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public void cancelOrder(UUID id, String reason) {
+    public OrderResponse cancelOrder(UUID id, String reason) {
         log.info("Cancelling order: {} due to: {}", id, reason);
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Order with ID " + id + " not found"));
 
+        OrderStatus previousStatus = order.getStatus();
+        if (previousStatus == OrderStatus.DELIVERED || previousStatus == OrderStatus.OUT_FOR_DELIVERY) {
+            throw new InvalidOrderStateException("Cannot cancel order in status: " + previousStatus);
+        }
+        if (previousStatus == OrderStatus.CANCELLED) {
+            throw new InvalidOrderStateException("Order is already cancelled");
+        }
+
         order.setStatus(OrderStatus.CANCELLED);
-        orderRepository.save(order);
+        String cancelReason = (reason != null && !reason.trim().isEmpty()) ? reason : "Order cancelled";
+        recordStatusChange(order, previousStatus, OrderStatus.CANCELLED, cancelReason);
+        Order savedOrder = orderRepository.save(order);
         log.info("Order {} status updated to CANCELLED", id);
+        return orderMapper.toOrderResponse(savedOrder);
+    }
+
+    private void recordStatusChange(Order order, OrderStatus previousStatus, OrderStatus newStatus, String reason) {
+        OrderStatusHistory history = OrderStatusHistory.builder()
+                .previousStatus(previousStatus)
+                .newStatus(newStatus)
+                .reason(reason)
+                .build();
+        order.addStatusHistory(history);
     }
 }

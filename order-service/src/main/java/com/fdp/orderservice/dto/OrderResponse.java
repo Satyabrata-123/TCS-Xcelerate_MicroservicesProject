@@ -19,6 +19,7 @@ public class OrderResponse {
     private OrderStatus status;
     private BigDecimal totalAmount;
     private List<OrderItemResponse> items;
+    private List<OrderStatusHistoryResponse> statusHistory;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

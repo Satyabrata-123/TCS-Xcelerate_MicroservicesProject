@@ -1,3 +1,13 @@
+jwt:
+  secret: ${JWT_SECRET:food_delivery_platform_secret_key_2026_safe_and_long_minimum_256_bits}
+  bypass-urls:
+    - /user/api/users/login
+    - /user/api/users/register
+    - /user/api-docs
+    - /restaurant/api-docs
+    - /order/api-docs
+    - /payment/api-docs
+
 server:
   port: 8080
 

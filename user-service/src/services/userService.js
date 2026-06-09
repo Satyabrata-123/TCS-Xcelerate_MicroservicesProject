@@ -1,7 +1,19 @@
+import jwt from 'jsonwebtoken';
 import userRepository from '../repositories/userRepository.js';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/errors.js';
 
 class UserService {
+  generateToken(user) {
+    const payload = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    };
+    const secret = process.env.JWT_SECRET || 'fallback_secret_key_123456789';
+    const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
+    return jwt.sign(payload, secret, { expiresIn });
+  }
+
   async registerUser(userData) {
     const existingUser = await userRepository.findByEmail(userData.email);
     if (existingUser) {
@@ -23,7 +35,8 @@ class UserService {
       throw new UnauthorizedError('Invalid email or password');
     }
 
-    return user;
+    const token = this.generateToken(user);
+    return { user, token };
   }
 
   async getUserById(id) {

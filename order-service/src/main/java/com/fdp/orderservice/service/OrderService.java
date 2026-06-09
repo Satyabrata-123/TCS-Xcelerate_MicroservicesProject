@@ -9,7 +9,7 @@ public interface OrderService {
     OrderResponse createOrder(OrderRequest request);
     OrderResponse getOrderById(UUID id);
     OrderResponse acceptOrder(UUID id);
-    OrderResponse outForDelivery(UUID id);
+    OrderResponse dispatchOrder(UUID id);
     OrderResponse deliverOrder(UUID id);
-    void cancelOrder(UUID id, String reason);
+    OrderResponse cancelOrder(UUID id, String reason);
 }
